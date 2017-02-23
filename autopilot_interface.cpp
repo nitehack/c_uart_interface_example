@@ -74,6 +74,22 @@ get_time_usec()
 // choose one of the next three
 
 /*
+* Set RC Channel
+*/
+void
+set_channel(uint16_t chan1_raw, uint16_t chan2_raw, uint16_t chan3_raw, uint16_t chan4_raw,uint16_t chan5_raw,uint16_t chan6_raw,uint16_t chan7_raw,uint16_t chan8_raw, mavlink_rc_channels_override_t &rc) //Modifica una estructura de ese tipo
+{
+	rc.chan1_raw   = chan1_raw;
+	rc.chan2_raw   = chan2_raw;
+	rc.chan3_raw   = chan3_raw;
+	rc.chan4_raw   = chan4_raw;
+	rc.chan5_raw   = chan5_raw;
+	rc.chan6_raw   = chan6_raw;
+	rc.chan7_raw   = chan7_raw;
+	rc.chan8_raw   = chan8_raw;
+}
+
+/*
  * Set target local ned position
  *
  * Modifies a mavlink_set_position_target_local_ned_t struct with target XYZ locations
@@ -404,6 +420,50 @@ write_message(mavlink_message_t message)
 	return len;
 }
 
+
+// ------------------------------------------------------------------------------
+//   Write RC Override
+// ------------------------------------------------------------------------------
+void
+Autopilot_Interface::
+write_rc_channel(mavlink_rc_channels_override_t rc)
+{
+	// --------------------------------------------------------------------------
+	//   PACK PAYLOAD
+	// --------------------------------------------------------------------------
+
+
+	// double check some system parameters. Si el time_boot_ms es 0
+	rc.target_system    = system_id;
+	rc.target_component = autopilot_id;
+
+
+	// --------------------------------------------------------------------------
+	//   ENCODE
+	// --------------------------------------------------------------------------
+
+	mavlink_message_t message; //Creamos la "cabecera" del mensaje
+	mavlink_msg_rc_channels_override_encode(system_id, companion_id, &message, &rc); //componemos el mensaje
+
+
+	// --------------------------------------------------------------------------
+	//   WRITE
+	// --------------------------------------------------------------------------
+
+	// do the write
+	int len = write_message(message); //escribimos el mensaje
+
+	// check the write
+	if ( len <= 0 )
+		fprintf(stderr,"WARNING: could not send POSITION_TARGET_LOCAL_NED \n");
+	//	else
+	//		printf("%lu POSITION_TARGET  = [ %f , %f , %f ] \n", write_count, position_target.x, position_target.y, position_target.z);
+
+	return;
+}
+
+
+
 // ------------------------------------------------------------------------------
 //   Write Setpoint Message
 // ------------------------------------------------------------------------------
@@ -572,13 +632,13 @@ start()
 	//   READ THREAD
 	// --------------------------------------------------------------------------
 
-	printf("START READ THREAD \n");
+	// printf("START READ THREAD \n");
 
-	result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
-	if ( result ) throw result;
+	// result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
+	// if ( result ) throw result;
 
-	// now we're reading messages
-	printf("\n");
+	// // now we're reading messages
+	// printf("\n");
 
 
 	// --------------------------------------------------------------------------
@@ -630,28 +690,28 @@ start()
 	// --------------------------------------------------------------------------
 
 	// Wait for initial position ned
-	while ( not ( current_messages.time_stamps.local_position_ned &&
-				  current_messages.time_stamps.attitude            )  )
-	{
-		if ( time_to_exit )
-			return;
-		usleep(500000);
-	}
+	// while ( not ( current_messages.time_stamps.local_position_ned &&
+	// 			  current_messages.time_stamps.attitude            )  )
+	// {
+	// 	if ( time_to_exit )
+	// 		return;
+	// 	usleep(500000);
+	// }
 
-	// copy initial position ned
-	Mavlink_Messages local_data = current_messages;
-	initial_position.x        = local_data.local_position_ned.x;
-	initial_position.y        = local_data.local_position_ned.y;
-	initial_position.z        = local_data.local_position_ned.z;
-	initial_position.vx       = local_data.local_position_ned.vx;
-	initial_position.vy       = local_data.local_position_ned.vy;
-	initial_position.vz       = local_data.local_position_ned.vz;
-	initial_position.yaw      = local_data.attitude.yaw;
-	initial_position.yaw_rate = local_data.attitude.yawspeed;
+	// // copy initial position ned
+	// Mavlink_Messages local_data = current_messages;
+	// initial_position.x        = local_data.local_position_ned.x;
+	// initial_position.y        = local_data.local_position_ned.y;
+	// initial_position.z        = local_data.local_position_ned.z;
+	// initial_position.vx       = local_data.local_position_ned.vx;
+	// initial_position.vy       = local_data.local_position_ned.vy;
+	// initial_position.vz       = local_data.local_position_ned.vz;
+	// initial_position.yaw      = local_data.attitude.yaw;
+	// initial_position.yaw_rate = local_data.attitude.yawspeed;
 
-	printf("INITIAL POSITION XYZ = [ %.4f , %.4f , %.4f ] \n", initial_position.x, initial_position.y, initial_position.z);
-	printf("INITIAL POSITION YAW = %.4f \n", initial_position.yaw);
-	printf("\n");
+	// printf("INITIAL POSITION XYZ = [ %.4f , %.4f , %.4f ] \n", initial_position.x, initial_position.y, initial_position.z);
+	// printf("INITIAL POSITION YAW = %.4f \n", initial_position.yaw);
+	// printf("\n");
 
 	// we need this before starting the write thread
 
@@ -659,17 +719,17 @@ start()
 	// --------------------------------------------------------------------------
 	//   WRITE THREAD
 	// --------------------------------------------------------------------------
-	printf("START WRITE THREAD \n");
+	// printf("START WRITE THREAD \n");
 
-	result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
-	if ( result ) throw result;
+	// result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
+	// if ( result ) throw result;
 
-	// wait for it to be started
-	while ( not writing_status )
-		usleep(100000); // 10Hz
+	// // wait for it to be started
+	// while ( not writing_status )
+	// 	usleep(100000); // 10Hz
 
-	// now we're streaming setpoint commands
-	printf("\n");
+	// // now we're streaming setpoint commands
+	// printf("\n");
 
 
 	// Done!
@@ -694,8 +754,8 @@ stop()
 	time_to_exit = true;
 
 	// wait for exit
-	pthread_join(read_tid ,NULL);
-	pthread_join(write_tid,NULL);
+	// pthread_join(read_tid ,NULL);
+	// pthread_join(write_tid,NULL);
 
 	// now the read and write threads are closed
 	printf("\n");

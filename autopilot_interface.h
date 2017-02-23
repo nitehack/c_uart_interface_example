@@ -118,6 +118,7 @@
 // helper functions
 uint64_t get_time_usec();
 void set_position(float x, float y, float z, mavlink_set_position_target_local_ned_t &sp);
+void set_channel(uint16_t chan1_raw, uint16_t chan2_raw, uint16_t chan3_raw, uint16_t chan4_raw,uint16_t chan5_raw,uint16_t chan6_raw,uint16_t chan7_raw,uint16_t chan8_raw, mavlink_rc_channels_override_t &rc); 
 void set_velocity(float vx, float vy, float vz, mavlink_set_position_target_local_ned_t &sp);
 void set_acceleration(float ax, float ay, float az, mavlink_set_position_target_local_ned_t &sp);
 void set_yaw(float yaw, mavlink_set_position_target_local_ned_t &sp);
@@ -261,6 +262,7 @@ public:
 	void read_messages();
 	int  write_message(mavlink_message_t message);
 
+
 	void enable_offboard_control();
 	void disable_offboard_control();
 
@@ -289,6 +291,8 @@ private:
 
 	int toggle_offboard_control( bool flag );
 	void write_setpoint();
+	void write_rc_channel(mavlink_rc_channels_override_t rc)
+
 
 };
 
