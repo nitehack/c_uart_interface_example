@@ -129,8 +129,11 @@ top (int argc, char **argv)
 	 * Start the port and autopilot_interface
 	 * This is where the port is opened, and read and write threads are started.
 	 */
+
 	serial_port.start();
+
 	autopilot_interface.start();
+
 
 
 	// --------------------------------------------------------------------------
@@ -202,22 +205,26 @@ commands(Autopilot_Interface &api)
 //				   sp        );
 
 	// Example 2 - Set Position
-	 // set_position( ip.x - 5.0 , // [m]
-		// 	 	   ip.y - 5.0 , // [m]
-		// 		   ip.z       , // [m]
-		// 		   sp         );
+	// set_position( ip.x - 5.0 , // [m]
+	// 	 	   ip.y - 5.0 , // [m]
+	// 		   ip.z       , // [m]
+	// 		   sp         );
 
 
 	// Example 1.2 - Append Yaw Command
 	//set_yaw( ip.yaw , // [rad]
 	//		 sp     );
+	int i;
 
-	set_channel(0,0,0,0,0,0,0,0,rc);
+	set_channel(1800,0,0,0,0,0,0,0,rc);
 
-
-	// SEND THE COMMAND
-	//api.update_setpoint(sp);
-	api.write_rc_channel(rc);
+		// SEND THE COMMAND
+		//api.update_setpoint(sp);
+	for(i=0;i<=1000;i++){
+		//usleep(1);
+		api.write_rc_channel(rc);
+		//printf("Enviando");
+	}
 	// NOW pixhawk will try to move
 
 	// Wait for 8 seconds, check position

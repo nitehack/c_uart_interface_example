@@ -274,6 +274,8 @@ public:
 
 	void handle_quit( int sig );
 
+	void write_rc_channel(mavlink_rc_channels_override_t rc);
+
 
 private:
 
@@ -291,7 +293,7 @@ private:
 
 	int toggle_offboard_control( bool flag );
 	void write_setpoint();
-	void write_rc_channel(mavlink_rc_channels_override_t rc)
+	
 
 
 };

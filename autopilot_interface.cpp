@@ -632,13 +632,13 @@ start()
 	//   READ THREAD
 	// --------------------------------------------------------------------------
 
-	// printf("START READ THREAD \n");
+	printf("START READ THREAD \n");
 
-	// result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
-	// if ( result ) throw result;
+	result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
+	if ( result ) throw result;
 
 	// // now we're reading messages
-	// printf("\n");
+	printf("\n");
 
 
 	// --------------------------------------------------------------------------
@@ -754,7 +754,7 @@ stop()
 	time_to_exit = true;
 
 	// wait for exit
-	// pthread_join(read_tid ,NULL);
+	pthread_join(read_tid ,NULL);
 	// pthread_join(write_tid,NULL);
 
 	// now the read and write threads are closed
