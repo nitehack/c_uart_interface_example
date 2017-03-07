@@ -44,6 +44,7 @@
  * @author Trent Lukaczyk, <aerialhedgehog@gmail.com>
  * @author Jaycee Lock,    <jaycee.lock@gmail.com>
  * @author Lorenz Meier,   <lm@inf.ethz.ch>
+ * @author Nicolás Guerrero, <nicoguerrero@ugr.es>
  *
  */
 
