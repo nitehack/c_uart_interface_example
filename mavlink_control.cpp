@@ -216,11 +216,11 @@ commands(Autopilot_Interface &api)
 	//		 sp     );
 	int i;
 
-	set_channel(1800,0,0,0,0,0,0,0,rc);
+	set_channel(1800,0,1800,0,0,0,0,0,rc);
 
 		// SEND THE COMMAND
 		//api.update_setpoint(sp);
-	for(i=0;i<=1000;i++){
+	for(i=0;i<=1;i++){
 		//usleep(1);
 		api.write_rc_channel(rc);
 		//printf("Enviando");
