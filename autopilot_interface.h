@@ -123,6 +123,7 @@ void set_velocity(float vx, float vy, float vz, mavlink_set_position_target_loca
 void set_acceleration(float ax, float ay, float az, mavlink_set_position_target_local_ned_t &sp);
 void set_yaw(float yaw, mavlink_set_position_target_local_ned_t &sp);
 void set_yaw_rate(float yaw_rate, mavlink_set_position_target_local_ned_t &sp);
+void set_command_long(uint16_t command, float param1, float param2, float param3, float param4, float param5, float param6, float param7,mavlink_command_long_t &cmdl);
 
 void* start_autopilot_interface_read_thread(void *args);
 void* start_autopilot_interface_write_thread(void *args);
@@ -275,6 +276,7 @@ public:
 	void handle_quit( int sig );
 
 	void write_rc_channel(mavlink_rc_channels_override_t rc);
+	void write_command_long(mavlink_command_long_t cmdl);
 
 
 private:

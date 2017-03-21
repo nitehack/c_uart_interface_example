@@ -74,6 +74,24 @@ get_time_usec()
 
 // choose one of the next three
 
+
+
+/*
+* Set Command long
+*/
+void
+set_command_long(uint16_t command, float param1, float param2, float param3, float param4, float param5, float param6, float param7,mavlink_command_long_t &cmdl)
+{
+	cmdl.command 	= command;
+	cmdl.param1		= param1;
+	cmdl.param2		= param2;
+	cmdl.param3		= param3;
+	cmdl.param4		= param4;
+	cmdl.param5		= param5;
+	cmdl.param6		= param6;
+	cmdl.param7		= param7;
+}
+
 /*
 * Set RC Channel
 */
@@ -434,7 +452,7 @@ write_rc_channel(mavlink_rc_channels_override_t rc)
 	// --------------------------------------------------------------------------
 
 
-	// double check some system parameters. Si el time_boot_ms es 0
+	// double check some system parameters. 
 	rc.target_system    = system_id;
 	rc.target_component = autopilot_id;
 
@@ -453,17 +471,61 @@ write_rc_channel(mavlink_rc_channels_override_t rc)
 
 	// do the write
 	int len = write_message(message); //escribimos el mensaje
-
+	mavlink_heartbeat_t heartbeat;
+    mavlink_message_t msg_heartbeat;
+    heartbeat.type = 6;
+    mavlink_msg_heartbeat_encode(system_id, companion_id, &msg_heartbeat, &heartbeat);
+    write_message(msg_heartbeat); 
+    usleep(1000000);
 	// check the write
 	if ( len <= 0 )
-		fprintf(stderr,"WARNING: could not send POSITION_TARGET_LOCAL_NED \n");
+		fprintf(stderr,"WARNING: could not send RC_CHANNELS_OVERRIDE \n");
 	//	else
 	//		printf("%lu POSITION_TARGET  = [ %f , %f , %f ] \n", write_count, position_target.x, position_target.y, position_target.z);
 
 	return;
 }
 
+// ------------------------------------------------------------------------------
+//   Write COMMAND_LONG
+// ------------------------------------------------------------------------------
+void
+Autopilot_Interface::
+write_command_long(mavlink_command_long_t cmdl)
+{
+	// --------------------------------------------------------------------------
+	//   PACK PAYLOAD
+	// --------------------------------------------------------------------------
 
+
+	// double check some system parameters. 
+	cmdl.target_system    = system_id;
+	cmdl.target_component = autopilot_id;//250;
+	cmdl.confirmation =0;
+
+
+	// --------------------------------------------------------------------------
+	//   ENCODE
+	// --------------------------------------------------------------------------
+
+	mavlink_message_t message; //Creamos la "cabecera" del mensaje
+	mavlink_msg_command_long_encode(system_id, companion_id, &message,&cmdl); //componemos mensaje
+
+	// --------------------------------------------------------------------------
+	//   WRITE
+	// --------------------------------------------------------------------------
+
+	// do the write
+	int len = write_message(message); //escribimos el mensaje
+
+	// check the write
+	if ( len <= 0 )
+		fprintf(stderr,"WARNING: could not send CMD LONG \n");
+	//	else
+	//		printf("%lu POSITION_TARGET  = [ %f , %f , %f ] \n", write_count, position_target.x, position_target.y, position_target.z);
+
+	return;
+}
 
 // ------------------------------------------------------------------------------
 //   Write Setpoint Message
