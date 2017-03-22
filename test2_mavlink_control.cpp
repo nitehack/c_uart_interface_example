@@ -30,7 +30,12 @@ int main(int argc, char **argv)
     		printf("ID: %i\n", message.sysid);
 		printf("COMPONENT: %i\n", message.compid);
     }
-    
+    mavlink_heartbeat_t heartbeat;
+    mavlink_message_t msg_heartbeat;
+    heartbeat.type = MAV_TYPE_GCS;
+    mavlink_msg_heartbeat_encode(1, 1, &msg_heartbeat, &heartbeat);
+
+
     // SET MESSAGE_INTERVAL. The aims to decrease the time response between MAV message recieved from OBC.
     
     
@@ -71,11 +76,13 @@ int main(int argc, char **argv)
 	*/
     
     // Encoding the struct into bytes
-    printf ("\nStart sending ...\n");
-    for(int i = 0; i<1000; i++){
+    //printf ("\nStart sending ...\n");
+    mavlink_msg_rc_channels_override_encode(1,1,&message, &rco);
+    for(int i = 0; i<10; i++){
     	   // CHANEL OVERRIDE
-        mavlink_msg_rc_channels_override_encode(1,1,&message, &rco);
-        int len = serial_port.write_message(message);
+        serial_port.write_message(msg_heartbeat);
+        
+        serial_port.write_message(message);
         
         // MANUAL CONTROL  
         //mavlink_msg_manual_control_pack(0xff,0, &message, MAV_TYPE_COAXIAL, -900, -900, -900, -900, 0);   
@@ -84,8 +91,9 @@ int main(int argc, char **argv)
         // SET ACTUATOR CONTROL
         //mavlink_msg_set_actuator_control_target_encode(0xff, 0, &message, controls)
         //int len = serial_port.write_message(message);
+    
+        sleep(1);
     }
-    sleep(1);
     printf("Finish \n\n");
 
     // Directly write the PWM values of the individual channels into the function
@@ -93,12 +101,12 @@ int main(int argc, char **argv)
         //mavlink_msg_rc_channels_override_pack(0xff,0, &message,0,0,u,u,u,1000,u,u,u,u );
         //int len = serial_port.write_message(message);
 
-        sleep(1);
+
     // All channels are set to 0. This releases the channels and give the control back to the RC
         //mavlink_msg_rc_channels_override_pack(0xff,0, &message,0,0,0,0,0,0,0,0,0,0 );
         //len = serial_port.write_message(message);
     
-    sleep(1);
+
     // Stoping the serial_port (closing it)
     serial_port.stop();
     sleep(1);
