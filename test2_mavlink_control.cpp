@@ -49,6 +49,9 @@ int main(int argc, char **argv)
     // Creating a struct needed to override the rc channels (rco for RC override)
     mavlink_rc_channels_override_t rco;
     
+    // Control actuator vector
+    float controls[8];
+    
     // declaring a 2 byte variable. 0xFFFF on a channels means that it is unused and therefore not changed
     uint16_t    u = 0xFFFF;
 
@@ -63,15 +66,43 @@ int main(int argc, char **argv)
     rco.chan8_raw = 1481; 			// Backside mode switch 
     rco.target_system =5;
     rco.target_component = 100;
-
+    
     
     // Encoding the struct into bytes
-    mavlink_msg_rc_channels_override_encode(255,0,&message, &rco);
-    
+    //mavlink_msg_rc_channels_override_encode(255,0,&message, &rco);
+	
+	// Set control actuator vector values
+	controls[0] = -1.0;
+	controls[1] = -1.0;
+	controls[2] = 0.0;
+	controls[3] = 0.0;
+	controls[4] = 0.0;
+	controls[5] = 0.0;
+	controls[6] = 0.0;
+	controls[7] = 0.0;
+	
     timeheart = time(0);
+    
+    // SET OFF BOARD CONTROL
+    // Prepare command for off-board mode
+	mavlink_command_long_t com = { 0 };
+	com.target_system    = 5;
+	com.target_component = 100;
+	com.command          = MAV_CMD_NAV_GUIDED_ENABLE;
+	com.confirmation     = true;
+	com.param1           = 1;
+
+	// Encode
+	mavlink_msg_command_long_encode(255, 0, &message, &com);
+
+	// Send the message
+	int len = serial_port.write_message(message);
+	
+	printf("OFF BOARD COMPUTER... ok\n\n");
+	sleep(1);
        
     printf ("\nStart sending ...\n");
-    for(int i = 0; i<100000; i++){
+    for(int i = 0; i<1; i++){
     	   
     	   // CHANEL OVERRIDE
     	   //if(difftime(time(0),timeheart) > 1){			//Every second, the heartbeat message is sent.
@@ -79,15 +110,16 @@ int main(int argc, char **argv)
     	   //	 timeheart = time(0);
     	   //}    	   
                	   									
-        serial_port.write_message(message);
+        //serial_port.write_message(message);
         
         // MANUAL CONTROL  
         //mavlink_msg_manual_control_pack(0xff,0, &message, MAV_TYPE_COAXIAL, -900, -900, -900, -900, 0);   
         //int len = serial_port.write_message(message);
         
         // SET ACTUATOR CONTROL
-        //mavlink_msg_set_actuator_control_target_encode(0xff, 0, &message, controls)
-        //int len = serial_port.write_message(message);
+        mavlink_msg_set_actuator_control_target_pack(0xff, 0, &message, 150000, 0, 5, 100, controls);
+        int len = serial_port.write_message(message);
+        sleep(2);
         
     }
     printf("Finish \n\n");
