@@ -34,11 +34,33 @@
 #include <stdlib.h>
 #include "mavlink_control.h"
 #include "time.h"
+#include <mraa.h>  
+#include <unistd.h>  
 
 #define PORT 5000
+#define INT_PIN 51 //Pin de la interrupción
+#define SYSTEM_ID 5
+#define COMPONENT_ID 100
+#define TIME_SLEEP 2 //Tiempo de esperar para asegurar que se ha activado el failsafe y no ha sido un falso positivo
+
+bool enable_semiauto=false;
+mraa_gpio_context interrupt;
+
+
+void failsafe_int();
+void mode_offboard(bool enable,Serial_Port *serial_port);
+
+
 
 int main()
 {
+	/**Activación de la interrupción por failsafe**/
+	mraa_init();  
+	interrupt = mraa_gpio_init(INT_PIN);   
+	mraa_gpio_dir(interrupt, MRAA_GPIO_IN);  
+	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, failsafe_int, NULL);  
+	/** **/
+
 	int sockfd, n;
 	struct sockaddr_in servaddr,cliaddr;
 	socklen_t len;
@@ -115,7 +137,11 @@ int main()
 
 		//Switch to semi-automatic state
 		if(cmd[0]=='o' && cmd[1]=='f' && cmd[2]=='f'){
-			mode_offboard(&serial_port);
+			enable_semiauto=true;
+		}
+
+		if(enable_semiauto){
+			mode_offboard(true,&serial_port); //Activamos modo offboard
 
 			//get current parameters
 			//mavlink_set_position_arget_local_ned_t sp
@@ -204,18 +230,24 @@ int main()
 }
 
 
-void mode_offboard(Serial_Port *serial_port){
+void mode_offboard(bool enable,Serial_Port *serial_port){
 
 	mavlink_message_t message;
 
 	// SET OFF BOARD CONTROL
 	// Prepare command for off-board mode
 	mavlink_command_long_t com = { 0 };
-	com.target_system    = 5;
-	com.target_component = 100;
+	com.target_system    = SYSTEM_ID;
+	com.target_component = COMPONENT_ID;
 	com.command          = MAV_CMD_NAV_GUIDED_ENABLE;
 	com.confirmation     = true;
-	com.param1           = 1;
+
+	if(enable){
+		com.param1=1; //OFFBOARD ON
+	}
+	else{
+		com.param1=0; //OFFBOARD OFF
+	}
 
 	// Encode
 	mavlink_msg_command_long_encode(255, 0, &message, &com);
@@ -226,7 +258,13 @@ void mode_offboard(Serial_Port *serial_port){
 	printf("OFF BOARD COMPUTER... ok\n\n");
 }
 
+void failsafe_int(){
+	sleep(TIME_SLEEP); //Esperamos un tiempon para asegurar que se ha activado el failsafe y no ha sido un falso positivo
 
+	if(mraa_gpio_read(interrupt)==1){
+		enable_semiauto=true;
+	}
+}
 
 
 
