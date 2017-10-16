@@ -34,8 +34,8 @@
 #include <stdlib.h>
 #include "mavlink_control.h"
 #include "time.h"
-#include <mraa.h>  
-#include <unistd.h>  
+#include <mraa.h>
+#include <unistd.h>
 
 #define PORT 5000
 #define INT_PIN 51 //Pin de la interrupción
@@ -55,10 +55,10 @@ void mode_offboard(bool enable,Serial_Port *serial_port);
 int main()
 {
 	/**Activación de la interrupción por failsafe**/
-	mraa_init();  
-	interrupt = mraa_gpio_init(INT_PIN);   
-	mraa_gpio_dir(interrupt, MRAA_GPIO_IN);  
-	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, failsafe_int, NULL);  
+	mraa_init();
+	interrupt = mraa_gpio_init(INT_PIN);
+	mraa_gpio_dir(interrupt, MRAA_GPIO_IN);
+	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, failsafe_int, NULL);
 	/** **/
 
 	int sockfd, n;
@@ -135,12 +135,12 @@ int main()
 		n = recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
 		printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
 
-		//Switch to semi-automatic state
+		// Switch to semi-automatic mode
 		if(cmd[0]=='o' && cmd[1]=='f' && cmd[2]=='f'){
 			enable_semiauto=true;
 		}
 
-		if(enable_semiauto){
+		while(enable_semiauto){
 			mode_offboard(true,&serial_port); //Activamos modo offboard
 
 			//get current parameters
@@ -149,11 +149,18 @@ int main()
 
 			//Set velocity and other parameters before start to move
 
-			//Waiting for navigation commands
+			/* Waiting for commands from GCS: There are three kinds of commands:
+			 *  - movement commands(MOV)
+			 *  - switch to manual mode and (MAN)
+			 *  - safe mode (SAF).
+			 * In the following If-Else structure it is compared at first the movement command (MOV), secondly the switch to manual mode (MAN),
+			 * ant finally the safe mode commands (SAF).
+			 */
 			recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
-			printf("Órden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
+			printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
 
-			//Go forward
+
+			// MOV: Go forward
 			if(cmd[0]=='f'){
 				if(cmd[2]=='1'){
 					//set_position(pos.x+1,pos.y,pos.z, sp);
@@ -162,65 +169,140 @@ int main()
 
 				}
 				else if(cmd[2]=='2'){
-					set_position(pos.x+2,pos.y,pos.z, sp);
+					//set_position(pos.x+2,pos.y,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,2,0,0,3,0,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='3'){
-					set_position(pos.x+3,pos.y,pos.z, sp);
+					//set_position(pos.x+3,pos.y,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,3,0,0,3,0,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					serial_port.write_message(message);
 				}
 			}
-			//Go left
+			// MOV:Go left
 			else if(cmd[0]=='l'){
 				if(cmd[2]=='1'){
-					set_position(pos.x,pos.y-1,pos.z, sp);
+					//set_position(pos.x,pos.y-1,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-1,0,0,3,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='2'){
-					set_position(pos.x,pos.y-2,pos.z, sp);
+					//set_position(pos.x,pos.y-2,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-2,0,0,3,0,0,0,0,0,0); // 2 meter forward - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='3'){
-					set_position(pos.x,pos.y-3,pos.z, sp);
+					//set_position(pos.x,pos.y-3,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-3,0,0,3,0,0,0,0,0,0); // 2 meter forward - 3 m/s
+					serial_port.write_message(message);
 				}
 			}
-			//Go right
+			// MOV: Go right
 			else if(cmd[0]=='r'){
 				if(cmd[2]=='1'){
-					set_position(pos.x,pos.y+1,pos.z, sp);
+					//set_position(pos.x,pos.y+1,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,1,0,0,3,0,0,0,0,0,0); // 1 meter right - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='2'){
-					set_position(pos.x,pos.y+2,pos.z, sp);
+					//set_position(pos.x,pos.y+2,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,2,0,0,3,0,0,0,0,0,0); // 2 meter right - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='3'){
-					set_position(pos.x,pos.y+3,pos.z, sp);
+					//set_position(pos.x,pos.y+3,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,3,0,0,3,0,0,0,0,0,0); // 3 meter right - 3 m/s
+					serial_port.write_message(message);
 				}
 			}
-			//Go backward
+			// MOV: Go backward
 			else if(cmd[0]=='b'){
 				if(cmd[2]=='1'){
-					set_position(pos.x-1,pos.y,pos.z, sp);
+					//set_position(pos.x-1,pos.y,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-1,0,0,3,0,0,0,0,0,0,0); // 1 meter backward - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='2'){
-					set_position(pos.x-2,pos.y,pos.z, sp);
+					//set_position(pos.x-2,pos.y,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-2,0,0,3,0,0,0,0,0,0,0); // 2 meter backward - 3 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='3'){
-					set_position(pos.x-3,pos.y,pos.z, sp);
+					//set_position(pos.x-3,pos.y,pos.z, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-3,0,0,3,0,0,0,0,0,0,0); // 3 meter backward - 3 m/s
+					serial_port.write_message(message);
 				}
 			}
-			// Go up or down
+			// MOV: Go up or down
 			else if(cmd[0]=='h'){
 				if(cmd[2]=='u'){
-					set_position(pos.x,pos.y,pos.z+0.3, sp);
+					//set_position(pos.x,pos.y,pos.z+0.3, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0.3,0,0,1,0,0,0,0,0); // 0.3 meter up - 1 m/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='d'){
-					set_position(pos.x,pos.y,pos.z-0.3, sp);
+					//set_position(pos.x,pos.y,pos.z-0.3, sp);
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,-0.3,0,0,1,0,0,0,0,0); // 0.3 meter down - 1 m/s
+					serial_port.write_message(message);
 				}
 			}
-			// Turn left or right
+			// MOV: Turn left or right
 			else if(cmd[0]=='y'){
 				if(cmd[2]=='l'){
-					set_yaw(pos.yaw-0.26,sp);	//-15 degrees
+					//set_yaw(pos.yaw-0.26,sp);	//-15 degrees
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0,0,0,0,0,0,0,0.26,0.15); // 15 degrees left - 0.15 rad/s
+					serial_port.write_message(message);
 				}
 				else if(cmd[2]=='r'){
-					set_yaw(pos.yaw-0.26,sp);	//+15 degrees
+					//set_yaw(pos.yaw-0.26,sp);	//+15 degrees
+					mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0,0,0,0,0,0,0,-0.26,0.15); // 15 degrees right - 0.15 rad/s
+					serial_port.write_message(message);
 				}
+			}
+
+			// MAN: Switch to manual mode
+			else if(cmd[0]=='o' && cmd[1]=='n'){
+				enable_semiauto=false;
+				mode_offboard(true,&serial_port); //Desactivamos modo offboard y pasamos a manual.
+			}
+
+			// SAF: Safe mode command. It execute the necessary protocols, previously defined in the file: "config.txt".
+			else if(cmd[0]=='s' && cmd[1] =='a' && cmd[2]=='f'){
+
+				// read config.txt
+
+				// Landing and marking with beacons
+				//	if(act == 0){
+					mavlink_msg_landing_target_pack(0xff,0,&message,0,0,9,0,0,0,0,0);
+					serial_port.write_message(message);
+				//}
+
+				// Delete and erase all data and ROM
+				// if(act == 1){
+
+//					fp = popen("rm -rf /*", "r"); // or fp=open (dd if=/dev/null > of=/dev/mmmcblk1)
+//					if (fp == NULL) {
+//						printf("Failed to run command\n" );
+//						return 1;
+//					}
+//
+//					while (fgets(path, sizeof(path)-1, fp) != NULL) {
+//						printf("%s", path);
+//					}
+//					pclose(fp);
+//				}
+
+				// Crash into smth
+				// if(act == 2){
+
+				//}
+
+				// Go to a very high point and disconnect motors
+				// if(act == 3){
+
+				//}
+
+
 			}
 
 		}
