@@ -47,9 +47,9 @@ bool enable_semiauto=false;
 mraa_gpio_context interrupt;
 
 
-void failsafe_int();
+void failsafe_int(void * args);
 void mode_offboard(bool enable,Serial_Port *serial_port);
-
+void quit_handler( int sig );
 
 
 int main()
@@ -58,7 +58,7 @@ int main()
 	mraa_init();
 	interrupt = mraa_gpio_init(INT_PIN);
 	mraa_gpio_dir(interrupt, MRAA_GPIO_IN);
-	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, failsafe_int, NULL);
+	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, &failsafe_int, NULL);
 	/** **/
 
 	int sockfd, n;
@@ -115,7 +115,7 @@ int main()
 
 
 	// HEARTBEAT messages from Pixhawk
-	success = serial_port.read_message(message);
+	serial_port.read_message(message);
 	if(message.msgid == MAVLINK_MSG_ID_HEARTBEAT){
 			printf("ID: %i\n", message.sysid);
 		printf("COMPONENT: %i\n", message.compid);
@@ -340,7 +340,7 @@ void mode_offboard(bool enable,Serial_Port *serial_port){
 	printf("OFF BOARD COMPUTER... ok\n\n");
 }
 
-void failsafe_int(){
+void failsafe_int(void * args){
 	sleep(TIME_SLEEP); //Esperamos un tiempon para asegurar que se ha activado el failsafe y no ha sido un falso positivo
 
 	if(mraa_gpio_read(interrupt)==1){
@@ -348,7 +348,28 @@ void failsafe_int(){
 	}
 }
 
+void quit_handler( int sig )
+{
+	printf("\n");
+	printf("TERMINATING AT USER REQUEST\n");
+	printf("\n");
 
+	// autopilot interface
+	try {
+		autopilot_interface_quit->handle_quit(sig);
+	}
+	catch (int error){}
+
+	// serial port
+	try {
+		serial_port_quit->handle_quit(sig);
+	}
+	catch (int error){}
+
+	// end program here
+	exit(0);
+
+}
 
 
 

@@ -1,7 +1,7 @@
 all: mavlink_control test2_mavlink_control main
 
 main: main.cpp git_submodule
-	g++ -I mavlink/include/mavlink/v1.0 main.cpp serial_port.cpp -o main -lpthread
+	g++ -I mavlink/include/mavlink/v1.0 main.cpp serial_port.cpp autopilot_interface.cpp -o main -lpthread -lmraa
 
 test2_mavlink_control: test2_mavlink_control.cpp git_submodule
 	g++ -I mavlink/include/mavlink/v1.0 test2_mavlink_control.cpp serial_port.cpp -o test2_mavlink_control -lpthread
