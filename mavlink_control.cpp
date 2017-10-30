@@ -1,4 +1,4 @@
-/****************************************************************************
+/***************************************************************************
  *
  *   Copyright (c) 2014 MAVlink Development Team. All rights reserved.
  *   Author: Trent Lukaczyk, <aerialhedgehog@gmail.com>
@@ -82,12 +82,7 @@ top (int argc, char **argv)
 	//   PARSE THE COMMANDS
 	// --------------------------------------------------------------------------
 
-	// Default input arguments
-#ifdef __APPLE__
-	char *uart_name = (char*)"/dev/tty.usbmodem1";
-#else
 	char *uart_name = (char*)"/dev/ttyS1";
-#endif
 	int baudrate = 57600;
 
 	// do the parse, will throw an int if it fails
@@ -144,6 +139,7 @@ top (int argc, char **argv)
 	 * Start the port and autopilot_interface
 	 * This is where the port is opened, and read and write threads are started.
 	 */
+	serial_port.start();
 	autopilot_interface.start(); //<--- Abre las hebras
 
 
@@ -221,14 +217,12 @@ commands(Autopilot_Interface &api)
 	len = sizeof(cliaddr);
 
 
-
-
-	//printf("Waiting for commands:\n");
+	printf("Waiting for commands:\n");
 
 	while(1){
 
 		n = recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
-		printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
+		printf("(ON) Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
 
 		// Switch to semi-automatic mode
 		if(cmd[0]=='o' && cmd[1]=='f' && cmd[2]=='f'){
@@ -259,7 +253,7 @@ commands(Autopilot_Interface &api)
 			 * ant finally the safe mode commands (SAF).
 			 */
 			recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
-			printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
+			printf("(OFF) Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
 
 
 			// MOV: Go forward
