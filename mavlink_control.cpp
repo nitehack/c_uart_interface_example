@@ -54,7 +54,9 @@
 // ------------------------------------------------------------------------------
 
 #include "mavlink_control.h"
-
+#include <mraa.h>
+bool enable_semiauto=false;
+mraa_gpio_context interrupt;
 
 // ------------------------------------------------------------------------------
 //   TOP
@@ -71,7 +73,7 @@ top (int argc, char **argv)
 #ifdef __APPLE__
 	char *uart_name = (char*)"/dev/tty.usbmodem1";
 #else
-	char *uart_name = (char*)"/dev/ttyUSB1";
+	char *uart_name = (char*)"/dev/ttyS1";
 #endif
 	int baudrate = 57600;
 
@@ -129,8 +131,7 @@ top (int argc, char **argv)
 	 * Start the port and autopilot_interface
 	 * This is where the port is opened, and read and write threads are started.
 	 */
-	serial_port.start();
-	autopilot_interface.start();
+	autopilot_interface.start(); //<--- Abre las hebras
 
 
 	// --------------------------------------------------------------------------
@@ -140,7 +141,8 @@ top (int argc, char **argv)
 	/*
 	 * Now we can implement the algorithm we want on top of the autopilot interface
 	 */
-	commands(autopilot_interface);
+	commands(autopilot_interface); //<--Comandos
+
 
 
 	// --------------------------------------------------------------------------
@@ -171,100 +173,237 @@ top (int argc, char **argv)
 void
 commands(Autopilot_Interface &api)
 {
+		/**Activación de la interrupción por failsafe**/
+	mraa_init();
+	interrupt = mraa_gpio_init(INT_PIN);
+	mraa_gpio_dir(interrupt, MRAA_GPIO_IN);
+	mraa_gpio_isr(interrupt, MRAA_GPIO_EDGE_RISING, &failsafe_int, NULL);
+	/** **/
 
-	// --------------------------------------------------------------------------
-	//   START OFFBOARD MODE
-	// --------------------------------------------------------------------------
+	int sockfd, n;
+	struct sockaddr_in servaddr,cliaddr;
+	socklen_t len;
+	int iSetOption = 1;
 
-	api.enable_offboard_control();
-	usleep(100); // give some time to let it sink in
-
-	// now the autopilot is accepting setpoint commands
-
-
-	// --------------------------------------------------------------------------
-	//   SEND OFFBOARD COMMANDS
-	// --------------------------------------------------------------------------
-	printf("SEND OFFBOARD COMMANDS\n");
-
-	// initialize command data strtuctures
-	mavlink_set_position_target_local_ned_t sp;
-	mavlink_set_position_target_local_ned_t ip = api.initial_position;
-
-	// autopilot_interface.h provides some helper functions to build the command
+	char cmd[3];
 
 
-	// Example 1 - Set Velocity
-//	set_velocity( -1.0       , // [m/s]
-//				  -1.0       , // [m/s]
-//				   0.0       , // [m/s]
-//				   sp        );
-
-	// Example 2 - Set Position
-	 set_position( ip.x - 5.0 , // [m]
-			 	   ip.y - 5.0 , // [m]
-				   ip.z       , // [m]
-				   sp         );
 
 
-	// Example 1.2 - Append Yaw Command
-	set_yaw( ip.yaw , // [rad]
-			 sp     );
+	/** Init Sockets UDP **/
+	sockfd=socket(AF_INET,SOCK_DGRAM,0);
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,(char*)&iSetOption, sizeof(iSetOption));
+	bzero(&servaddr,sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
+	servaddr.sin_port=htons(PORT);
+	if(bind(sockfd,(struct sockaddr *)&servaddr,sizeof(servaddr)) < 0){
 
-	// SEND THE COMMAND
-	api.update_setpoint(sp);
-	// NOW pixhawk will try to move
-
-	// Wait for 8 seconds, check position
-	for (int i=0; i < 8; i++)
-	{
-		mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
-		printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
-		sleep(1);
+		if( errno == EADDRINUSE ){
+			printf("the port is not available. already to other process\n");
+		} else {
+			printf("could not bind to process (%d) %s\n", errno, strerror(errno));
+		}
 	}
-
-	printf("\n");
-
-
-	// --------------------------------------------------------------------------
-	//   STOP OFFBOARD MODE
-	// --------------------------------------------------------------------------
-
-	api.disable_offboard_control();
-
-	// now pixhawk isn't listening to setpoint commands
+	len = sizeof(cliaddr);
 
 
-	// --------------------------------------------------------------------------
-	//   GET A MESSAGE
-	// --------------------------------------------------------------------------
-	printf("READ SOME MESSAGES \n");
-
-	// copy current messages
-	Mavlink_Messages messages = api.current_messages;
-
-	// local position in ned frame
-	mavlink_local_position_ned_t pos = messages.local_position_ned;
-	printf("Got message LOCAL_POSITION_NED (spec: https://pixhawk.ethz.ch/mavlink/#LOCAL_POSITION_NED)\n");
-	printf("    pos  (NED):  %f %f %f (m)\n", pos.x, pos.y, pos.z );
-
-	// hires imu
-	mavlink_highres_imu_t imu = messages.highres_imu;
-	printf("Got message HIGHRES_IMU (spec: https://pixhawk.ethz.ch/mavlink/#HIGHRES_IMU)\n");
-	printf("    ap time:     %llu \n", imu.time_usec);
-	printf("    acc  (NED):  % f % f % f (m/s^2)\n", imu.xacc , imu.yacc , imu.zacc );
-	printf("    gyro (NED):  % f % f % f (rad/s)\n", imu.xgyro, imu.ygyro, imu.zgyro);
-	printf("    mag  (NED):  % f % f % f (Ga)\n"   , imu.xmag , imu.ymag , imu.zmag );
-	printf("    baro:        %f (mBar) \n"  , imu.abs_pressure);
-	printf("    altitude:    %f (m) \n"     , imu.pressure_alt);
-	printf("    temperature: %f C \n"       , imu.temperature );
-
-	printf("\n");
 
 
-	// --------------------------------------------------------------------------
-	//   END OF COMMANDS
-	// --------------------------------------------------------------------------
+	//printf("Waiting for commands:\n");
+
+	while(1){
+
+		n = recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
+		printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
+
+		// Switch to semi-automatic mode
+		if(cmd[0]=='o' && cmd[1]=='f' && cmd[2]=='f'){
+			enable_semiauto=true;
+		}
+
+		while(enable_semiauto){
+			
+
+			// --------------------------------------------------------------------------
+			//   START OFFBOARD MODE
+			// --------------------------------------------------------------------------
+
+			api.enable_offboard_control();
+			usleep(100); // give some time to let it sink in
+
+				// initialize command data strtuctures
+			mavlink_set_position_target_local_ned_t sp;
+			mavlink_set_position_target_local_ned_t ip = api.initial_position;
+
+
+
+			/* Waiting for commands from GCS: There are three kinds of commands:
+			 *  - movement commands(MOV)
+			 *  - switch to manual mode and (MAN)
+			 *  - safe mode (SAF).
+			 * In the following If-Else structure it is compared at first the movement command (MOV), secondly the switch to manual mode (MAN),
+			 * ant finally the safe mode commands (SAF).
+			 */
+			recvfrom(sockfd,(char*)&cmd,3,0,(struct sockaddr *)&cliaddr,&len);
+			printf("Orden recibida: %c%c%c\n", cmd[0],cmd[1],cmd[2]);
+
+
+			// MOV: Go forward
+			if(cmd[0]=='f'){
+				if(cmd[2]=='1'){
+					set_position(1,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,1,0,0,3,0,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					//serial_port.write_message(message);
+
+				}
+				else if(cmd[2]=='2'){
+					set_position(2,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,2,0,0,3,0,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='3'){
+					set_position(3,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,3,0,0,3,0,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					//serial_port.write_message(message);
+				}
+			}
+			// MOV:Go left
+			else if(cmd[0]=='l'){
+				if(cmd[2]=='1'){
+					set_position(0,-1,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-1,0,0,3,0,0,0,0,0,0); // 1 meter forward - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='2'){
+					set_position(0,-2,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-2,0,0,3,0,0,0,0,0,0); // 2 meter forward - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='3'){
+					set_position(0,-3,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,-3,0,0,3,0,0,0,0,0,0); // 2 meter forward - 3 m/s
+					//serial_port.write_message(message);
+				}
+			}
+			// MOV: Go right
+			else if(cmd[0]=='r'){
+				if(cmd[2]=='1'){
+					set_position(0,1,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,1,0,0,3,0,0,0,0,0,0); // 1 meter right - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='2'){
+					set_position(0,2,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,2,0,0,3,0,0,0,0,0,0); // 2 meter right - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='3'){
+					set_position(0,3,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,3,0,0,3,0,0,0,0,0,0); // 3 meter right - 3 m/s
+					//serial_port.write_message(message);
+				}
+			}
+			// MOV: Go backward
+			else if(cmd[0]=='b'){
+				if(cmd[2]=='1'){
+					set_position(-1,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-1,0,0,3,0,0,0,0,0,0,0); // 1 meter backward - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='2'){
+					set_position(-2,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-2,0,0,3,0,0,0,0,0,0,0); // 2 meter backward - 3 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='3'){
+					set_position(-3,0,0, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,-3,0,0,3,0,0,0,0,0,0,0); // 3 meter backward - 3 m/s
+					//serial_port.write_message(message);
+				}
+			}
+			// MOV: Go up or down
+			else if(cmd[0]=='h'){
+				if(cmd[2]=='u'){
+					set_position(0,0,0.3, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0.3,0,0,1,0,0,0,0,0); // 0.3 meter up - 1 m/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='d'){
+					set_position(0,0,-0.3, sp);
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,-0.3,0,0,1,0,0,0,0,0); // 0.3 meter down - 1 m/s
+					//serial_port.write_message(message);
+				}
+			}
+			// MOV: Turn left or right
+			else if(cmd[0]=='y'){
+				if(cmd[2]=='l'){
+					set_yaw(-0.26,sp);	//-15 degrees
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0,0,0,0,0,0,0,0.26,0.15); // 15 degrees left - 0.15 rad/s
+					//serial_port.write_message(message);
+				}
+				else if(cmd[2]=='r'){
+					set_yaw(-0.26,sp);	//+15 degrees
+					//mavlink_msg_set_position_target_local_ned_pack(0xff,0,&message,0,5,100,9,0,0,0,0,0,0,0,0,0,0,-0.26,0.15); // 15 degrees right - 0.15 rad/s
+					//serial_port.write_message(message);
+				}
+			}
+			api.update_setpoint(sp); //actualizamos posición
+
+			// MAN: Switch to manual mode
+			else if(cmd[0]=='o' && cmd[1]=='n'){
+				enable_semiauto=false;
+				api.disable_offboard_control();
+				//mode_offboard(true,&serial_port); //Desactivamos modo offboard y pasamos a manual.
+			}
+
+			// SAF: Safe mode command. It execute the necessary protocols, previously defined in the file: "config.txt".
+			else if(cmd[0]=='s' && cmd[1] =='a' && cmd[2]=='f'){
+
+				// read config.txt
+
+				// Landing and marking with beacons
+				//	if(act == 0){
+
+				/* MIRAR ESTO
+					mavlink_msg_landing_target_pack(0xff,0,&message,0,0,9,0,0,0,0,0);
+					serial_port.write_message(message);
+				*//
+
+
+				//}
+
+				// Delete and erase all data and ROM
+				// if(act == 1){
+
+//					fp = popen("rm -rf /*", "r"); // or fp=open (dd if=/dev/null > of=/dev/mmmcblk1)
+//					if (fp == NULL) {
+//						printf("Failed to run command\n" );
+//						return 1;
+//					}
+//
+//					while (fgets(path, sizeof(path)-1, fp) != NULL) {
+//						printf("%s", path);
+//					}
+//					pclose(fp);
+//				}
+
+				// Crash into smth
+				// if(act == 2){
+
+				//}
+
+				// Go to a very high point and disconnect motors
+				// if(act == 3){
+
+				//}
+
+
+			}
+
+		}
+
+	}
 
 	return;
 
