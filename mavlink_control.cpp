@@ -55,8 +55,21 @@
 
 #include "mavlink_control.h"
 #include <mraa.h>
+#include <iostream>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
 bool enable_semiauto=false;
 mraa_gpio_context interrupt;
+
+#define PORT 5000
+#define INT_PIN 51 //Pin de la interrupción
+#define SYSTEM_ID 5
+#define COMPONENT_ID 100
+#define TIME_SLEEP 2 //Tiempo de esperar para asegurar que se ha activado el failsafe y no ha sido un falso positivo
+
 
 // ------------------------------------------------------------------------------
 //   TOP
@@ -351,7 +364,7 @@ commands(Autopilot_Interface &api)
 			api.update_setpoint(sp); //actualizamos posición
 
 			// MAN: Switch to manual mode
-			else if(cmd[0]=='o' && cmd[1]=='n'){
+			if(cmd[0]=='o' && cmd[1]=='n'){
 				enable_semiauto=false;
 				api.disable_offboard_control();
 				//mode_offboard(true,&serial_port); //Desactivamos modo offboard y pasamos a manual.
@@ -368,7 +381,7 @@ commands(Autopilot_Interface &api)
 				/* MIRAR ESTO
 					mavlink_msg_landing_target_pack(0xff,0,&message,0,0,9,0,0,0,0,0);
 					serial_port.write_message(message);
-				*//
+				*/
 
 
 				//}
@@ -459,6 +472,16 @@ parse_commandline(int argc, char **argv, char *&uart_name, int &baudrate)
 	return;
 }
 
+// ------------------------------------------------------------------------------
+//   FAIL SAFE trigger
+// ------------------------------------------------------------------------------
+void failsafe_int(void * args){
+	sleep(TIME_SLEEP); //Esperamos un tiempon para asegurar que se ha activado el failsafe y no ha sido un falso positivo
+
+	if(mraa_gpio_read(interrupt)==1){
+		enable_semiauto=true;
+	}
+}
 
 // ------------------------------------------------------------------------------
 //   Quit Signal Handler
